@@ -8,6 +8,16 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
+<div id="token-gate" class="token-gate hidden">
+  <div class="token-card">
+    <h2>🐾 喵醫師的醫學期刊助理</h2>
+    <p>請輸入通關碼即可進入（只需第一次，會記在這台裝置）。</p>
+    <input id="token-input" type="text" inputmode="text" autocomplete="off" placeholder="通關碼">
+    <button id="token-submit">進入</button>
+    <div id="token-msg" class="token-msg"></div>
+  </div>
+</div>
+
 <header>
   <h1>🐾 喵醫師的醫學期刊助理</h1>
   <div class="controls">

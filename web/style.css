@@ -130,6 +130,47 @@ main:has(.reader:not(.hidden)) { grid-template-columns: 1fr 1.2fr; align-items: 
   padding: 10px 18px; border-radius: 8px; font-size: .9rem;
   z-index: 100;
 }
+.token-gate {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+.token-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 28px 26px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+}
+.token-card h2 { font-size: 1.15rem; margin-bottom: 8px; }
+.token-card p { font-size: .88rem; color: var(--muted); margin-bottom: 16px; }
+.token-card input {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.token-card button {
+  width: 100%;
+  padding: 10px;
+  font: inherit;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.token-msg { color: #a33; font-size: .82rem; margin-top: 10px; min-height: 1em; }
+
 .hidden { display: none; }
 .empty { color: var(--muted); text-align: center; padding: 40px; }
 
