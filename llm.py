@@ -21,7 +21,8 @@ def translate_titles_bulk(titles: list, model: str = None) -> list:
     model = model or config.LITE_MODEL
     listed = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(titles))
     prompt = (
-        "你是醫學翻譯專家。將以下英文期刊標題依序翻成流暢的繁體中文醫學術語。\n"
+        "你是台灣的醫學翻譯專家。將以下英文期刊標題依序翻成流暢的醫學術語。\n"
+        "務必使用【台灣慣用的繁體中文（正體中文）】，嚴禁出現任何簡體字。\n"
         '嚴格輸出 JSON，包含一個名為 "translations" 的陣列，依序放每篇的中文翻譯，'
         "不要輸出其他任何文字。\n\n"
         f"{listed}"
@@ -44,7 +45,8 @@ def translate_titles_bulk(titles: list, model: str = None) -> list:
         return [f"[翻譯失敗] {t}" for t in titles]
 
 
-SUMMARY_PROMPT = """你是一位資深醫學主治醫師。請閱讀以下文獻，整理成排版分明的繁體中文。
+SUMMARY_PROMPT = """你是一位台灣的資深醫學主治醫師。請閱讀以下文獻，整理成排版分明的繁體中文。
+務必使用【台灣慣用的繁體中文（正體中文）】，嚴禁出現任何簡體字。
 
 論文標題: {title}
 期刊: {journal} ({date})
