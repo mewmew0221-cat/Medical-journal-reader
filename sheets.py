@@ -12,19 +12,25 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 COLLECTIONS = "Collections"
 ARTICLES = "Articles"
+JOBS = "Jobs"
 
+# 注意：新欄位一律「附加在尾端」，不要插中間，否則既有資料列會跟表頭錯位。
 COLLECTIONS_HEADERS = [
     "collection_id", "type", "name", "query", "created_at", "last_synced_at", "note",
+    "status",  # active | draft（主題模式起草中、等使用者確認 query）
 ]
 ARTICLES_HEADERS = [
     "collection_id", "pmid", "title_en", "title_zh", "journal", "pub_date",
     "doi", "url", "authors", "abstract", "relevance_score", "status",
     "summary", "note", "added_at", "summarized_at",
 ]
+JOBS_HEADERS = [
+    "job_id", "type", "params", "status", "created_at", "finished_at", "message",
+]
 
 
 def open_sheet():
-    """連線並確保兩張分頁與表頭都就緒，回傳 Spreadsheet 物件。"""
+    """連線並確保各分頁與表頭都就緒，回傳 Spreadsheet 物件。"""
     creds = Credentials.from_service_account_file(
         config.GOOGLE_SERVICE_ACCOUNT_FILE, scopes=SCOPES
     )
@@ -32,6 +38,7 @@ def open_sheet():
     sh = gc.open_by_key(config.SHEET_ID)
     _ensure_tab(sh, COLLECTIONS, COLLECTIONS_HEADERS)
     _ensure_tab(sh, ARTICLES, ARTICLES_HEADERS)
+    _ensure_tab(sh, JOBS, JOBS_HEADERS)
     return sh
 
 
@@ -45,12 +52,34 @@ def _ensure_tab(sh, title, headers):
     return ws
 
 
-def add_collection(sh, collection_id, ctype, name, query, created_at):
+def add_collection(sh, collection_id, ctype, name, query, created_at,
+                   note="", status="active"):
     ws = sh.worksheet(COLLECTIONS)
     ws.append_row(
-        [collection_id, ctype, name, query, created_at, "", ""],
+        [collection_id, ctype, name, query, created_at, "", note, status],
         value_input_option="USER_ENTERED",
     )
+
+
+def get_collection(sh, collection_id) -> dict | None:
+    """取單一集合（附 _row 真實列號供回寫）。找不到回 None。"""
+    ws = sh.worksheet(COLLECTIONS)
+    for i, r in enumerate(ws.get_all_records(), start=2):
+        if str(r["collection_id"]) == str(collection_id):
+            r["_row"] = i
+            return r
+    return None
+
+
+def update_collection(sh, collection_id, fields: dict):
+    """更新某集合的指定欄位（依 collection_id 找列）。"""
+    ws = sh.worksheet(COLLECTIONS)
+    row = get_collection(sh, collection_id)
+    if not row:
+        return
+    for key, val in fields.items():
+        col = COLLECTIONS_HEADERS.index(key) + 1
+        ws.update_cell(row["_row"], col, val)
 
 
 def existing_pmids(sh, collection_id) -> set:
@@ -101,4 +130,24 @@ def update_article_row(sh, row_index, fields: dict):
     ws = sh.worksheet(ARTICLES)
     for key, val in fields.items():
         col = ARTICLES_HEADERS.index(key) + 1
+        ws.update_cell(row_index, col, val)
+
+
+# --- Jobs 佇列（網頁發起、Python worker 推進）---
+
+def get_pending_jobs(sh) -> list:
+    """取出狀態為 pending 的工作（附 _row 真實列號供回寫）。"""
+    ws = sh.worksheet(JOBS)
+    out = []
+    for i, r in enumerate(ws.get_all_records(), start=2):
+        if r.get("status") == "pending":
+            r["_row"] = i
+            out.append(r)
+    return out
+
+
+def update_job(sh, row_index, fields: dict):
+    ws = sh.worksheet(JOBS)
+    for key, val in fields.items():
+        col = JOBS_HEADERS.index(key) + 1
         ws.update_cell(row_index, col, val)

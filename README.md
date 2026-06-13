@@ -6,14 +6,14 @@
 ## 架構
 
 ```
-Google Sheet（資料：Collections 集合 / Articles 文章）
+Google Sheet（Collections 集合 / Articles 文章 / Jobs 佇列）
       ↕
-GAS Web App（讀寫 API，前端用）           ← M2 之後
+GAS Web App（讀寫 API，前端用）                 ← M2
       ↕
-靜態前端（書庫 → 勾選 → 閱讀＋註記）       ← M2 之後
+靜態前端（書庫 → 勾選 → 閱讀＋註記；發起工作寫進 Jobs）  ← M2 / M3
       ↑
-Python producer（抓 PubMed + Gemini 摘要，寫進 Sheet）  ← 本檔，M1
-GitHub Actions 排程刷新                    ← M5 之後
+Python producer（撿 Jobs → 抓 PubMed + Gemini 摘要/排序，寫回 Sheet）  ← M1 / M3 / M4
+GitHub Actions 排程跑 run-jobs                  ← M5 之後
 ```
 
 設計理念：**Sheet 當佇列、Python 當推進狀態的 worker、前端只讀＋改狀態＋寫註記**。
@@ -21,11 +21,11 @@ GitHub Actions 排程刷新                    ← M5 之後
 
 ## Roadmap
 
-- **M1（現在）**：Sheet schema + Python producer（期別模式：抓取→翻標題→寫候選；摘要 Pass）
-- **M2**：GAS 讀寫 API + 最小前端（看集合→讀摘要→寫註記）
-- **M3**：摘要 Pass 串接 + 前端勾選 kept/dropped
-- **M4**：主題模式（LLM 起草 query + 篩選器 UI + 語意排序漏斗）
-- **M5**：GitHub Actions 排程自動刷新
+- ✅ **M1**：Sheet schema + Python producer（期別模式：抓取→翻標題→寫候選；摘要 Pass）
+- ✅ **M2**：GAS 讀寫 API + 最小前端（看集合→讀摘要→寫註記→前端勾選 kept/dropped）
+- ✅ **M3**：網頁發起工作（`Jobs` 佇列：新增一期、按鈕產摘要，免開 CLI）
+- ✅ **M4**：主題模式漏斗（LLM 起草 query → 人工確認 → 粗篩 → 語意排序 → 勾選 → 摘要）
+- **M5**：GitHub Actions 排程自動跑 `run-jobs`
 
 ## 安裝與設定（M1）
 
@@ -58,4 +58,28 @@ python producer.py ingest-issue --journal "N Engl J Med" --year 2026 --month 3
 python producer.py summarize
 ```
 
-> 第一次執行會自動在你的 Sheet 建立 `Collections` 與 `Articles` 兩張分頁與表頭。
+> 第一次執行會自動在你的 Sheet 建立 `Collections`、`Articles`、`Jobs` 分頁與表頭。
+
+## 使用（M3：網頁發起、本機 worker 推進）
+
+網頁（GitHub Pages）只把工作排進 Sheet 的 `Jobs` 佇列，真正抓取/摘要由本機 worker 執行：
+
+```bash
+# 在網頁按「＋ 新增一期」「＋ 新增主題」「✨ 為此集合產摘要」「確認並抓取」後，
+# 回本機跑這行把佇列裡 pending 的工作做掉，再回網頁按「重新整理」：
+python producer.py run-jobs
+```
+
+主題模式也可純 CLI 操作：
+
+```bash
+python producer.py draft-topic   --collection topic-xxxx   # Stage 0：起草 query
+python producer.py ingest-topic  --collection topic-xxxx   # Stage 1+2：粗篩＋語意排序
+```
+
+> M5 之後改由 GitHub Actions 定時跑 `run-jobs`，就能完全免開電腦。
+
+## 部署更新（改了 GAS / 前端後）
+
+- **GAS**：Apps Script 編輯器貼上 `gas/Code.gs` → 部署 → 管理部署 → 編輯 → **新版本**（光存檔不生效）。
+- **前端**：`git push` 後 GitHub Actions 自動部署 `web/` 到 Pages。

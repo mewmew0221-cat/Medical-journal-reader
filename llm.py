@@ -1,4 +1,4 @@
-"""LLM 處理：標題批次翻譯、自適應摘要。（query 起草／語意排序留待 M4）"""
+"""LLM 處理：標題批次翻譯、自適應摘要、主題模式的 query 起草與標題語意排序。"""
 import json
 import logging
 
@@ -84,3 +84,61 @@ def summarize_abstract(article: dict, model: str = None) -> str:
     except Exception as e:
         logger.error(f"summarize 失敗: {e}")
         return f"Error: 產生摘要失敗 ({e})"
+
+
+# --- 主題模式漏斗（痛點④：關鍵字海量分流）---
+
+DRAFT_QUERY_PROMPT = """你是醫學文獻檢索專家，熟悉 PubMed 的 E-utilities 查詢語法。
+使用者想用以下「主題」在 PubMed 搜尋近期文獻，請幫他起草一段精準的 PubMed query。
+
+主題描述：
+{topic}
+
+要求：
+- 善用 MeSH 詞、欄位標籤（[Title/Abstract]、[MeSH Terms] 等）與布林運算子（AND/OR）。
+- 用括號把同義詞群組起來，兼顧召回與精準。
+- 只回傳「query 字串本身」，不要加說明、不要加引號、不要 markdown。"""
+
+
+def draft_pubmed_query(topic: str, model: str = None) -> str:
+    """Stage 0：依自然語言主題起草一段 PubMed query（供使用者確認/微調）。"""
+    model = model or config.LITE_MODEL
+    prompt = DRAFT_QUERY_PROMPT.format(topic=topic)
+    try:
+        return _model(model).generate_content(prompt).text.strip()
+    except Exception as e:
+        logger.error(f"draft_pubmed_query 失敗: {e}")
+        return ""
+
+
+def rank_titles_by_relevance(topic: str, titles: list, model: str = None) -> list:
+    """Stage 2：依主題對標題做語意相關度排序，回傳與輸入等長的 0–100 分數清單。"""
+    if not titles:
+        return []
+    model = model or config.LITE_MODEL
+    listed = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(titles))
+    prompt = (
+        "你是醫學文獻篩選助手。使用者的研究主題如下：\n"
+        f"「{topic}」\n\n"
+        "請逐篇評估下列文章標題與此主題的相關程度，給 0 到 100 的整數分數"
+        "（100＝高度相關、0＝完全無關）。\n"
+        '嚴格輸出 JSON，包含一個名為 "scores" 的整數陣列，依序對應每篇標題，'
+        "不要輸出其他任何文字。\n\n"
+        f"{listed}"
+    )
+    try:
+        resp = _model(model).generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json"
+            ),
+        )
+        data = json.loads(resp.text.strip())
+        scores = data.get("scores", [])
+        if len(scores) == len(titles):
+            return scores
+        logger.warning(f"評分數量不符：預期 {len(titles)} 實得 {len(scores)}")
+        return (scores + [0] * len(titles))[: len(titles)]
+    except Exception as e:
+        logger.error(f"rank_titles_by_relevance 失敗: {e}")
+        return [0] * len(titles)

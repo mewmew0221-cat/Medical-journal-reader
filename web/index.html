@@ -27,8 +27,78 @@
   </div>
 </header>
 
+<div class="newbar">
+  <button id="btn-new-issue">＋ 新增一期</button>
+  <button id="btn-new-topic">＋ 新增主題</button>
+  <button id="btn-summarize" class="primary">✨ 為此集合產摘要</button>
+  <button id="btn-jobs">⏱ 工作狀態</button>
+</div>
+
+<!-- 新增一期：抓某期刊某年月 -->
+<form id="form-issue" class="panel hidden">
+  <h3>新增一期（抓某期刊某年月的全部文章）</h3>
+  <label>期刊
+    <input id="issue-journal" list="journals" placeholder="例如 N Engl J Med" autocomplete="off">
+    <datalist id="journals">
+      <option value="N Engl J Med"><option value="Lancet"><option value="JAMA">
+      <option value="BMJ"><option value="Ann Intern Med"><option value="Nat Med">
+      <option value="Kidney Int"><option value="J Am Soc Nephrol">
+      <option value="Clin J Am Soc Nephrol"><option value="Am J Kidney Dis">
+      <option value="Nephrol Dial Transplant"><option value="Kidney Int Rep">
+      <option value="Nat Rev Nephrol"><option value="Kidney Med">
+    </datalist>
+  </label>
+  <div class="row">
+    <label>年 <input id="issue-year" type="number" min="1900" max="2100" placeholder="2026"></label>
+    <label>月 <input id="issue-month" type="number" min="1" max="12" placeholder="3"></label>
+    <label>最多抓 <input id="issue-max" type="number" min="1" max="200" value="50"></label>
+  </div>
+  <div class="panel-actions">
+    <button type="submit" class="primary">排入佇列</button>
+    <button type="button" class="cancel" data-close="form-issue">取消</button>
+  </div>
+  <p class="hint">排入後，請在本機跑 <code>python producer.py run-jobs</code>，完成後按「重新整理」就會出現新集合。</p>
+</form>
+
+<!-- 新增主題：自然語言主題 → worker 起草 query -->
+<form id="form-topic" class="panel hidden">
+  <h3>新增主題（用一句話描述，AI 幫你起草 PubMed 檢索式）</h3>
+  <label>集合名稱
+    <input id="topic-name" placeholder="例如 IgA 腎炎最新治療" autocomplete="off">
+  </label>
+  <label>主題描述（越具體越好）
+    <textarea id="topic-desc" rows="3"
+      placeholder="例如：IgA 腎病變近兩年的新型治療，包含 SGLT2 抑制劑、內皮素受體拮抗劑、補體抑制劑的隨機對照試驗"></textarea>
+  </label>
+  <div class="panel-actions">
+    <button type="submit" class="primary">起草檢索式</button>
+    <button type="button" class="cancel" data-close="form-topic">取消</button>
+  </div>
+  <p class="hint">排入後跑 <code>python producer.py run-jobs</code> 起草，回來重新整理、選到這個集合即可檢視/微調檢索式再抓取。</p>
+</form>
+
+<!-- 工作狀態：顯示 Jobs 佇列近況 -->
+<div id="jobs-panel" class="panel hidden">
+  <h3>工作狀態（最近的佇列）</h3>
+  <div id="jobs-list" class="jobs-list"></div>
+  <p class="hint">pending＝等你在本機跑 <code>python producer.py run-jobs</code>。</p>
+</div>
+
 <main>
+  <!-- 主題模式：query 起草完、等使用者確認 -->
+  <section id="draft" class="panel hidden">
+    <h3>確認檢索式後再抓取</h3>
+    <p class="hint">AI 已為「<span id="draft-name"></span>」起草以下 PubMed 檢索式，可直接微調：</p>
+    <textarea id="draft-query" rows="4"></textarea>
+    <div class="row">
+      <label>最多抓 <input id="draft-max" type="number" min="1" max="200" value="80"></label>
+      <button id="btn-confirm-topic" class="primary">確認並抓取</button>
+    </div>
+    <p class="hint">確認後跑 <code>python producer.py run-jobs</code>，會做粗篩＋AI 語意排序，回來重新整理即可勾選。</p>
+  </section>
+
   <section id="list" class="list"></section>
+
   <section id="reader" class="reader hidden">
     <button id="reader-close" class="reader-close">✕</button>
     <div id="reader-body"></div>

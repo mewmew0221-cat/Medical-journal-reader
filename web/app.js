@@ -1,6 +1,7 @@
 // GAS 網頁應用程式 /exec 網址
 const API = 'https://script.google.com/macros/s/AKfycbxjR_bN94mGeo5jQmIBK6oXIAIiPnSneslshRbqBgSCyUwLOF-phYs2GVtuyYXUJhiaOQ/exec';
 
+let collections = [];
 let articles = [];
 let currentCid = '';
 let openPmid = null;
@@ -8,6 +9,9 @@ let openPmid = null;
 const STATUS_LABEL = {
   candidate: '待篩選', kept: '待摘要', summarized: '可閱讀',
   read: '已讀', dropped: '不看', no_abstract: '無摘要',
+};
+const JOB_LABEL = {
+  pending: '等待中', running: '執行中', done: '完成', error: '失敗',
 };
 
 // 通關碼存在 localStorage，由頁面內輸入框設定（不用瀏覽器原生 prompt）
@@ -37,7 +41,8 @@ async function getJSON(params) {
 
 // 不設 header，維持 text/plain 避免 GAS 的 CORS preflight（與小說站同款）
 async function post(body) {
-  await fetch(API, { method: 'POST', body: JSON.stringify({ ...body, token: getToken() }) });
+  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ ...body, token: getToken() }) });
+  try { return await r.json(); } catch (e) { return {}; }
 }
 
 function toast(msg) {
@@ -45,20 +50,56 @@ function toast(msg) {
   t.textContent = msg;
   t.classList.remove('hidden');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.add('hidden'), 1800);
+  toast._t = setTimeout(() => t.classList.add('hidden'), 2200);
 }
+
+function currentCollection() {
+  return collections.find(c => String(c.collection_id) === String(currentCid));
+}
+
+// 集合狀態：空白視為 active（相容舊資料）
+function colStatus(c) { return (c && c.status) ? String(c.status) : 'active'; }
 
 async function loadCollections() {
   const data = await getJSON({ action: 'collections' });
+  collections = data.collections || [];
   const sel = document.getElementById('collection-select');
   sel.innerHTML = '';
-  (data.collections || []).reverse().forEach(c => {
+  [...collections].reverse().forEach(c => {
     const o = document.createElement('option');
     o.value = c.collection_id;
-    o.textContent = c.name || c.collection_id;
+    const draft = colStatus(c) === 'draft' ? '（草稿）' : '';
+    const tag = c.type === 'topic' ? '🔍 ' : '📖 ';
+    o.textContent = tag + (c.name || c.collection_id) + draft;
     sel.appendChild(o);
   });
-  if (sel.value) { currentCid = sel.value; await loadArticles(currentCid); }
+  if (sel.value) { currentCid = sel.value; await refreshCurrent(); }
+}
+
+// 依目前選到的集合，決定要顯示「文章清單」還是「草稿確認面板」
+async function refreshCurrent() {
+  const c = currentCollection();
+  const draftPanel = document.getElementById('draft');
+  if (c && c.type === 'topic' && colStatus(c) === 'draft') {
+    document.getElementById('list').innerHTML = '';
+    showDraftPanel(c);
+  } else {
+    draftPanel.classList.add('hidden');
+    await loadArticles(currentCid);
+  }
+  // 主題集合才需要產摘要鈕？其實期別也要，保留全部可用
+  document.getElementById('btn-summarize').classList.toggle(
+    'hidden', !!(c && c.type === 'topic' && colStatus(c) === 'draft'));
+}
+
+function showDraftPanel(c) {
+  const panel = document.getElementById('draft');
+  document.getElementById('draft-name').textContent = c.name || c.collection_id;
+  const ta = document.getElementById('draft-query');
+  ta.value = c.query || '';
+  ta.placeholder = '（尚未起草。請先跑 python producer.py run-jobs，再回來重新整理）';
+  panel.classList.remove('hidden');
+  panel.dataset.cid = c.collection_id;
 }
 
 async function loadArticles(cid) {
@@ -72,7 +113,11 @@ function renderList() {
   const list = document.getElementById('list');
   list.innerHTML = '';
 
-  const shown = articles.filter(a => !(hideDropped && a.status === 'dropped'));
+  let shown = articles.filter(a => !(hideDropped && a.status === 'dropped'));
+  // 主題模式：有語意排序分數時，相關度高的排前面
+  if (shown.some(a => a.relevance_score !== '' && a.relevance_score != null)) {
+    shown = [...shown].sort((x, y) => (Number(y.relevance_score) || 0) - (Number(x.relevance_score) || 0));
+  }
   if (!shown.length) {
     list.innerHTML = '<div class="empty">這個集合還沒有文章，或都被隱藏了。</div>';
     return;
@@ -81,12 +126,15 @@ function renderList() {
   shown.forEach(a => {
     const card = document.createElement('div');
     card.className = 'card' + (a.status === 'dropped' ? ' dropped' : '');
+    const score = (a.relevance_score !== '' && a.relevance_score != null)
+      ? `<span class="score" title="AI 語意相關度">★ ${a.relevance_score}</span>` : '';
     card.innerHTML = `
       <div class="zh">${esc(a.title_zh || a.title_en)}</div>
       <div class="en">${esc(a.title_en)}</div>
       <div class="meta">${esc(a.journal)} · ${esc(a.pub_date)} · ${esc(a.authors)}</div>
       <div>
         <span class="badge b-${a.status}">${STATUS_LABEL[a.status] || a.status}</span>
+        ${score}
       </div>
       <div class="actions">${actionsFor(a)}</div>
     `;
@@ -140,7 +188,7 @@ function openReader(a) {
   const reader = document.getElementById('reader');
   reader.classList.remove('hidden');
   const body = document.getElementById('reader-body');
-  const summary = a.summary || '*（這篇尚未產生摘要，請先在 Sheet 標 kept 再跑 summarize）*';
+  const summary = a.summary || '*（這篇尚未產生摘要，請先標 kept 再產摘要）*';
   const link = `\n\n[🔗 在 PubMed 開啟原文](${a.url})`;
   body.innerHTML = renderMarkdown(summary + link);
   document.getElementById('note-input').value = a.note || '';
@@ -171,9 +219,79 @@ function esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// --- M3：從網頁發起工作（寫進 Jobs 佇列，由本機 worker 推進）---
+
+// 只開指定面板、關掉其他
+function openOnly(id) {
+  ['form-issue', 'form-topic', 'jobs-panel'].forEach(p => {
+    document.getElementById(p).classList.toggle('hidden', p !== id);
+  });
+}
+function closePanels() {
+  ['form-issue', 'form-topic', 'jobs-panel'].forEach(
+    p => document.getElementById(p).classList.add('hidden'));
+}
+
+async function submitIssue(e) {
+  e.preventDefault();
+  const journal = document.getElementById('issue-journal').value.trim();
+  const year = parseInt(document.getElementById('issue-year').value, 10);
+  const month = parseInt(document.getElementById('issue-month').value, 10);
+  const max = parseInt(document.getElementById('issue-max').value, 10) || 50;
+  if (!journal || !year || !month) { toast('請填期刊、年、月'); return; }
+  await post({ action: 'enqueue', type: 'ingest_issue', params: { journal, year, month, max } });
+  closePanels();
+  toast('已排入佇列，請到本機跑 run-jobs');
+}
+
+async function submitTopic(e) {
+  e.preventDefault();
+  const name = document.getElementById('topic-name').value.trim();
+  const topic = document.getElementById('topic-desc').value.trim();
+  if (!topic) { toast('請描述主題'); return; }
+  await post({ action: 'new_topic', name: name || topic, topic });
+  document.getElementById('topic-name').value = '';
+  document.getElementById('topic-desc').value = '';
+  closePanels();
+  toast('已建立草稿並排入起草工作，跑完 run-jobs 後重新整理');
+}
+
+async function confirmTopic() {
+  const panel = document.getElementById('draft');
+  const cid = panel.dataset.cid;
+  const query = document.getElementById('draft-query').value.trim();
+  const max = parseInt(document.getElementById('draft-max').value, 10) || 80;
+  if (!cid || !query) { toast('檢索式不可為空'); return; }
+  await post({ action: 'confirm_topic', collection_id: cid, query, max });
+  toast('已確認，請跑 run-jobs 抓取');
+  panel.classList.add('hidden');
+}
+
+async function summarizeCurrent() {
+  if (!currentCid) return;
+  await post({ action: 'enqueue', type: 'summarize', params: { collection: currentCid } });
+  toast('已排入產摘要工作，跑 run-jobs 後重新整理');
+}
+
+async function loadJobs() {
+  const data = await getJSON({ action: 'jobs' });
+  const box = document.getElementById('jobs-list');
+  const jobs = data.jobs || [];
+  if (!jobs.length) { box.innerHTML = '<div class="empty">目前沒有工作。</div>'; return; }
+  box.innerHTML = jobs.map(j => `
+    <div class="job j-${j.status}">
+      <span class="job-type">${esc(j.type)}</span>
+      <span class="job-status">${JOB_LABEL[j.status] || j.status}</span>
+      <span class="job-time">${esc(j.created_at)}</span>
+      ${j.message ? `<div class="job-msg">${esc(j.message)}</div>` : ''}
+    </div>`).join('');
+}
+
+// --- 事件綁定 ---
+
 document.getElementById('collection-select').addEventListener('change', e => {
   currentCid = e.target.value;
-  loadArticles(currentCid);
+  refreshCurrent();
 });
 document.getElementById('hide-dropped').addEventListener('change', renderList);
 document.getElementById('btn-refresh').addEventListener('click', async (e) => {
@@ -181,7 +299,7 @@ document.getElementById('btn-refresh').addEventListener('click', async (e) => {
   const old = btn.textContent;
   btn.disabled = true;
   btn.textContent = '↻ 更新中…';
-  await loadArticles(currentCid);
+  await loadCollections();
   btn.textContent = old;
   btn.disabled = false;
   toast('已重新整理');
@@ -191,6 +309,20 @@ document.getElementById('reader-close').addEventListener('click', () => {
 });
 document.getElementById('btn-save-note').addEventListener('click', saveNote);
 document.getElementById('btn-mark-read').addEventListener('click', markRead);
+
+document.getElementById('btn-new-issue').addEventListener('click', () => openOnly('form-issue'));
+document.getElementById('btn-new-topic').addEventListener('click', () => openOnly('form-topic'));
+document.getElementById('btn-jobs').addEventListener('click', async () => {
+  openOnly('jobs-panel');
+  await loadJobs();
+});
+document.getElementById('btn-summarize').addEventListener('click', summarizeCurrent);
+document.getElementById('form-issue').addEventListener('submit', submitIssue);
+document.getElementById('form-topic').addEventListener('submit', submitTopic);
+document.getElementById('btn-confirm-topic').addEventListener('click', confirmTopic);
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => document.getElementById(btn.dataset.close).classList.add('hidden'));
+});
 
 function submitToken() {
   const t = document.getElementById('token-input').value.trim();
