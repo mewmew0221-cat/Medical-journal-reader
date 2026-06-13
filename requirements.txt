@@ -1,0 +1,5 @@
+requests
+google-generativeai
+gspread>=6.0.0
+google-auth
+python-dotenv
