@@ -155,6 +155,8 @@ function actionsFor(a) {
     btns.push(`<span class="meta">（等下次產摘要）</span>`);
   } else if (a.status === 'summarized' || a.status === 'read') {
     btns.push(`<button data-act="read" class="primary">📖 閱讀</button>`);
+  } else if (a.status === 'dropped') {
+    btns.push(`<button data-act="restore">↩ 還原</button>`);
   }
   return btns.join('');
 }
@@ -162,6 +164,7 @@ function actionsFor(a) {
 async function onAction(a, act) {
   if (act === 'keep') return setStatus(a, 'kept');
   if (act === 'drop') return setStatus(a, 'dropped');
+  if (act === 'restore') return setStatus(a, 'candidate');
   if (act === 'read') return openReader(a);
 }
 

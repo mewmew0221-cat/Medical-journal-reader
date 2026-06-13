@@ -14,5 +14,6 @@ GOOGLE_SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "ser
 SHEET_ID = os.environ.get("SHEET_ID", "")
 
 # --- 模型 routing（預設全 lite，摘要可升級）---
-LITE_MODEL = os.environ.get("LITE_MODEL", "gemini-2.5-flash-lite")
-SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "gemini-2.5-flash")
+# 可用 .env 的 LITE_MODEL / SUMMARY_MODEL 覆寫；摘要品質若不夠改成 gemini-3.5-flash。
+LITE_MODEL = os.environ.get("LITE_MODEL", "gemini-3.1-flash-lite")
+SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "gemini-3.1-flash-lite")
