@@ -11,7 +11,11 @@ const STATUS_LABEL = {
 };
 
 async function getJSON(params) {
-  const r = await fetch(API + '?' + new URLSearchParams(params));
+  // 加時間戳 + no-store，避免瀏覽器快取 GAS 回應導致重新整理拿到舊資料
+  const r = await fetch(
+    API + '?' + new URLSearchParams({ ...params, _: Date.now() }),
+    { cache: 'no-store' }
+  );
   return r.json();
 }
 
@@ -143,7 +147,16 @@ document.getElementById('collection-select').addEventListener('change', e => {
   loadArticles(currentCid);
 });
 document.getElementById('hide-dropped').addEventListener('change', renderList);
-document.getElementById('btn-refresh').addEventListener('click', () => loadArticles(currentCid));
+document.getElementById('btn-refresh').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '↻ 更新中…';
+  await loadArticles(currentCid);
+  btn.textContent = old;
+  btn.disabled = false;
+  toast('已重新整理');
+});
 document.getElementById('reader-close').addEventListener('click', () => {
   document.getElementById('reader').classList.add('hidden');
 });
