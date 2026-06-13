@@ -10,18 +10,35 @@ const STATUS_LABEL = {
   read: '已讀', dropped: '不看', no_abstract: '無摘要',
 };
 
-async function getJSON(params) {
+// 通關碼：第一次輸入後存 localStorage，之後自動帶上；force=true 會清掉重問
+function ensureToken(force) {
+  if (force) localStorage.removeItem('mjr_token');
+  let t = localStorage.getItem('mjr_token');
+  if (!t) {
+    t = (prompt('請輸入通關碼（只需第一次，會記在這台裝置）：') || '').trim();
+    if (t) localStorage.setItem('mjr_token', t);
+  }
+  return t;
+}
+
+async function getJSON(params, retried) {
   // 加時間戳 + no-store，避免瀏覽器快取 GAS 回應導致重新整理拿到舊資料
   const r = await fetch(
-    API + '?' + new URLSearchParams({ ...params, _: Date.now() }),
+    API + '?' + new URLSearchParams({ ...params, token: ensureToken(), _: Date.now() }),
     { cache: 'no-store' }
   );
-  return r.json();
+  const data = await r.json();
+  if (data.error === 'unauthorized' && !retried) {
+    alert('通關碼錯誤，請重新輸入');
+    ensureToken(true);
+    return getJSON(params, true);
+  }
+  return data;
 }
 
 // 不設 header，維持 text/plain 避免 GAS 的 CORS preflight（與小說站同款）
 async function post(body) {
-  await fetch(API, { method: 'POST', body: JSON.stringify(body) });
+  await fetch(API, { method: 'POST', body: JSON.stringify({ ...body, token: ensureToken() }) });
 }
 
 function toast(msg) {

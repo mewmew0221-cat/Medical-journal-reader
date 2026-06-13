@@ -29,7 +29,14 @@ function json_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// 通關碼存在「專案設定 → 指令碼屬性」的 API_TOKEN，不寫進公開的程式碼
+function checkToken_(token) {
+  const secret = PropertiesService.getScriptProperties().getProperty('API_TOKEN');
+  return !!secret && String(token) === secret;
+}
+
 function doGet(e) {
+  if (!checkToken_(e.parameter.token)) return json_({ error: 'unauthorized' });
   const action = (e.parameter.action || '').toLowerCase();
   if (action === 'collections') {
     return json_({ collections: readRecords_('Collections') });
@@ -45,6 +52,7 @@ function doGet(e) {
 
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
+  if (!checkToken_(body.token)) return json_({ error: 'unauthorized' });
   if (body.action === 'update') {
     updateArticle_(body.collection_id, body.pmid, body.fields || {});
     return json_({ ok: true });
