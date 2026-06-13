@@ -124,16 +124,29 @@ async function setStatus(a, status) {
   toast('已更新');
 }
 
+// 容錯渲染：相容不同版本的 marked，載入失敗時退回純文字
+function renderMarkdown(md) {
+  try {
+    if (typeof marked !== 'undefined') {
+      if (typeof marked.parse === 'function') return marked.parse(md);
+      if (typeof marked === 'function') return marked(md);
+    }
+  } catch (e) { /* 落到下面的純文字退路 */ }
+  return esc(md).replace(/\n/g, '<br>');
+}
+
 function openReader(a) {
   openPmid = a.pmid;
   const reader = document.getElementById('reader');
   reader.classList.remove('hidden');
   const body = document.getElementById('reader-body');
-  const summary = a.summary || '*（尚無摘要）*';
+  const summary = a.summary || '*（這篇尚未產生摘要，請先在 Sheet 標 kept 再跑 summarize）*';
   const link = `\n\n[🔗 在 PubMed 開啟原文](${a.url})`;
-  body.innerHTML = marked.parse(summary + link);
+  body.innerHTML = renderMarkdown(summary + link);
   document.getElementById('note-input').value = a.note || '';
   reader.scrollTop = 0;
+  // 手機單欄時面板在頁尾，捲過去才看得到
+  reader.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function saveNote() {
