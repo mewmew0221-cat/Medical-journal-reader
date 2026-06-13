@@ -51,6 +51,20 @@ def ingest_issue(journal: str, year: int, month: int, max_fetch: int):
     logger.info(f"已寫入 {len(rows)} 篇候選到 Sheet（集合 {cid}）")
 
 
+def retranslate_titles(collection_id=None):
+    """重新翻譯既有文章的中文標題並回寫（修正早期簡體殘留）。"""
+    sh = sheets.open_sheet()
+    arts = sheets.get_all_articles(sh, collection_id)
+    logger.info(f"重新翻譯 {len(arts)} 篇標題")
+    if not arts:
+        return
+    zh_titles = llm.translate_titles_bulk([a["title_en"] for a in arts])
+    for a, zh in zip(arts, zh_titles):
+        if zh and zh != a.get("title_zh"):
+            sheets.update_article_row(sh, a["_row"], {"title_zh": zh})
+    logger.info("標題已更新")
+
+
 def summarize_pending(collection_id=None):
     """Pass 2：對標記為 kept 的文章產摘要並回寫。"""
     sh = sheets.open_sheet()
@@ -84,11 +98,16 @@ def main():
     s = sub.add_parser("summarize", help="對已勾選 kept 的文章產摘要（Pass 2）")
     s.add_argument("--collection", default=None)
 
+    rt = sub.add_parser("retranslate-titles", help="重新翻譯既有文章的中文標題")
+    rt.add_argument("--collection", default=None)
+
     args = p.parse_args()
     if args.cmd == "ingest-issue":
         ingest_issue(args.journal, args.year, args.month, args.max)
     elif args.cmd == "summarize":
         summarize_pending(args.collection)
+    elif args.cmd == "retranslate-titles":
+        retranslate_titles(args.collection)
 
 
 if __name__ == "__main__":

@@ -70,6 +70,18 @@ def append_articles(sh, rows):
     ws.append_rows(rows, value_input_option="USER_ENTERED")
 
 
+def get_all_articles(sh, collection_id=None) -> list:
+    """取出文章（可指定集合），附 _row 真實列號供回寫。"""
+    ws = sh.worksheet(ARTICLES)
+    out = []
+    for i, r in enumerate(ws.get_all_records(), start=2):  # 第 1 列是表頭
+        if collection_id and str(r["collection_id"]) != str(collection_id):
+            continue
+        r["_row"] = i
+        out.append(r)
+    return out
+
+
 def get_articles_by_status(sh, status, collection_id=None) -> list:
     """取出指定狀態的文章列（附 _row 真實列號供回寫）。"""
     ws = sh.worksheet(ARTICLES)
