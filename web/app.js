@@ -1,5 +1,5 @@
-// 把這裡換成你部署 GAS 網頁應用程式後拿到的 /exec 網址
-const API = 'PASTE_YOUR_GAS_WEB_APP_URL_HERE';
+// GAS 網頁應用程式 /exec 網址
+const API = 'https://script.google.com/macros/s/AKfycbxjR_bN94mGeo5jQmIBK6oXIAIiPnSneslshRbqBgSCyUwLOF-phYs2GVtuyYXUJhiaOQ/exec';
 
 let articles = [];
 let currentCid = '';
