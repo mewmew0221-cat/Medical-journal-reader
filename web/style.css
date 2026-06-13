@@ -1,0 +1,139 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --ink: #1f2933;
+  --muted: #66757f;
+  --line: #e1e6ea;
+  --accent: #2b7a78;
+  --accent-ink: #ffffff;
+}
+
+body {
+  font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+header {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header h1 { font-size: 1.15rem; }
+.controls { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+.controls select, .controls button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  cursor: pointer;
+}
+.hide-dropped { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+main {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  padding: 18px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+main:has(.reader:not(.hidden)) { grid-template-columns: 1fr 1.2fr; align-items: start; }
+
+.list { display: flex; flex-direction: column; gap: 12px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.card.dropped { opacity: .45; }
+.card .zh { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; }
+.card .en { font-size: .82rem; color: var(--muted); margin-bottom: 6px; }
+.card .meta { font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
+
+.badge {
+  display: inline-block;
+  font-size: .72rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+}
+.b-candidate { background: #eceff1; color: #546e7a; }
+.b-kept { background: #fff3df; color: #9a6400; }
+.b-summarized { background: #d8f0ea; color: #1b6b5f; }
+.b-read { background: #e3f1d6; color: #4a6d12; }
+.b-dropped { background: #f0e0e0; color: #8a4444; }
+.b-no_abstract { background: #fbe4e4; color: #a33; }
+
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.actions button {
+  font: inherit;
+  font-size: .85rem;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  cursor: pointer;
+}
+.actions button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.reader {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 24px;
+  position: sticky;
+  top: 78px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+.reader-close { float: right; border: none; background: none; font-size: 1.1rem; cursor: pointer; color: var(--muted); }
+.reader h1 { font-size: 1.3rem; margin: .4em 0; }
+.reader h2 { font-size: 1.05rem; margin: 1em 0 .3em; }
+.reader ul, .reader ol { margin: .3em 0 .6em 1.4em; }
+.reader p { margin: .4em 0; }
+.reader a { color: var(--accent); }
+
+.note-box { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
+.note-box label { font-size: .85rem; font-weight: 600; color: var(--muted); }
+.note-box textarea {
+  width: 100%;
+  min-height: 80px;
+  margin-top: 6px;
+  padding: 10px;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  resize: vertical;
+}
+.note-actions { display: flex; gap: 8px; margin-top: 8px; }
+.note-actions button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+.note-actions button.secondary { background: var(--card); color: var(--accent); }
+
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1f2933; color: #fff;
+  padding: 10px 18px; border-radius: 8px; font-size: .9rem;
+  z-index: 100;
+}
+.hidden { display: none; }
+.empty { color: var(--muted); text-align: center; padding: 40px; }
+
+@media (max-width: 760px) {
+  main:has(.reader:not(.hidden)) { grid-template-columns: 1fr; }
+  .reader { position: static; max-height: none; }
+}

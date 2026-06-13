@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>喵醫師的醫學期刊助理</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>🐾 喵醫師的醫學期刊助理</h1>
+  <div class="controls">
+    <select id="collection-select"></select>
+    <label class="hide-dropped"><input type="checkbox" id="hide-dropped" checked> 隱藏不看的</label>
+    <button id="btn-refresh">↻ 重新整理</button>
+  </div>
+</header>
+
+<main>
+  <section id="list" class="list"></section>
+  <section id="reader" class="reader hidden">
+    <button id="reader-close" class="reader-close">✕</button>
+    <div id="reader-body"></div>
+    <div class="note-box">
+      <label for="note-input">我的註記</label>
+      <textarea id="note-input" placeholder="例如：已讀，重點是腎炎治療那段…"></textarea>
+      <div class="note-actions">
+        <button id="btn-save-note">儲存註記</button>
+        <button id="btn-mark-read" class="secondary">標為已讀</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
