@@ -107,6 +107,13 @@ main:has(.reader:not(.hidden)) { grid-template-columns: 1fr 1.2fr; align-items: 
 .reader p { margin: .4em 0; }
 .reader a { color: var(--accent); }
 
+.reader-tools { display: flex; gap: 8px; margin-top: 16px; }
+.reader-tools button {
+  font: inherit; font-size: .85rem;
+  padding: 6px 14px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); cursor: pointer;
+}
+
 .note-box { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; }
 .note-box label { font-size: .85rem; font-weight: 600; color: var(--muted); }
 .note-box textarea {
@@ -232,4 +239,16 @@ main:has(.reader:not(.hidden)) { grid-template-columns: 1fr 1.2fr; align-items: 
 @media (max-width: 760px) {
   main:has(.reader:not(.hidden)) { grid-template-columns: 1fr; }
   .reader { position: static; max-height: none; }
+}
+
+/* 列印／存 PDF：只留閱讀面板的摘要，其餘全部隱藏 */
+@media print {
+  body * { visibility: hidden; }
+  #reader, #reader-body, #reader-body * { visibility: visible; }
+  #reader {
+    position: absolute; left: 0; top: 0; width: 100%;
+    border: none; padding: 0; max-height: none; overflow: visible;
+  }
+  .reader-close, .reader-tools, .note-box { display: none !important; }
+  @page { margin: 1.6cm; }
 }

@@ -217,6 +217,32 @@ async function markRead() {
   toast('已標為已讀');
 }
 
+// 下載單篇摘要為 Markdown 檔（摘要本身已含標題與文獻資訊，只補原文連結）
+function downloadSummary() {
+  const a = articles.find(x => x.pmid === openPmid);
+  if (!a || !a.summary) { toast('這篇還沒有摘要'); return; }
+  const md = `${a.summary}\n\n🔗 PubMed 原文：${a.url}\n`;
+  const safe = String(a.title_zh || a.title_en || a.pmid)
+    .replace(/[\\/:*?"<>|]/g, '').slice(0, 40).trim();
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${a.pmid}_${safe}.md`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  toast('已下載摘要');
+}
+
+// 列印只印閱讀面板的摘要（靠 @media print 隱藏其他區塊），可在對話框存成 PDF
+function printSummary() {
+  const a = articles.find(x => x.pmid === openPmid);
+  if (!a || !a.summary) { toast('這篇還沒有摘要'); return; }
+  window.print();
+}
+
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -312,6 +338,8 @@ document.getElementById('reader-close').addEventListener('click', () => {
 });
 document.getElementById('btn-save-note').addEventListener('click', saveNote);
 document.getElementById('btn-mark-read').addEventListener('click', markRead);
+document.getElementById('btn-download').addEventListener('click', downloadSummary);
+document.getElementById('btn-print').addEventListener('click', printSummary);
 
 document.getElementById('btn-new-issue').addEventListener('click', () => openOnly('form-issue'));
 document.getElementById('btn-new-topic').addEventListener('click', () => openOnly('form-topic'));
