@@ -18,6 +18,7 @@ JOBS = "Jobs"
 COLLECTIONS_HEADERS = [
     "collection_id", "type", "name", "query", "created_at", "last_synced_at", "note",
     "status",  # active | draft（主題模式起草中、等使用者確認 query）
+    "watch",   # on | off（空白＝off）：排程重掃只挑 on 的主題集合
 ]
 ARTICLES_HEADERS = [
     "collection_id", "pmid", "title_en", "title_zh", "journal", "pub_date",
@@ -53,10 +54,10 @@ def _ensure_tab(sh, title, headers):
 
 
 def add_collection(sh, collection_id, ctype, name, query, created_at,
-                   note="", status="active"):
+                   note="", status="active", watch="off"):
     ws = sh.worksheet(COLLECTIONS)
     ws.append_row(
-        [collection_id, ctype, name, query, created_at, "", note, status],
+        [collection_id, ctype, name, query, created_at, "", note, status, watch],
         value_input_option="USER_ENTERED",
     )
 
@@ -80,6 +81,26 @@ def update_collection(sh, collection_id, fields: dict):
     for key, val in fields.items():
         col = COLLECTIONS_HEADERS.index(key) + 1
         ws.update_cell(row["_row"], col, val)
+
+
+def get_watched_collections(sh) -> list:
+    """取出有訂閱自動更新（watch=on）的主題集合（附 _row）。
+
+    只挑 type=topic 且 status 為 active（非 draft）的，期別集合不重掃
+    （某期已是定數，不會長新文章；期刊出刊偵測屬 M5 第二段）。
+    """
+    ws = sh.worksheet(COLLECTIONS)
+    out = []
+    for i, r in enumerate(ws.get_all_records(), start=2):
+        if str(r.get("watch", "")).lower() != "on":
+            continue
+        if r.get("type") != "topic":
+            continue
+        if str(r.get("status", "active") or "active") == "draft":
+            continue
+        r["_row"] = i
+        out.append(r)
+    return out
 
 
 def existing_pmids(sh, collection_id) -> set:
@@ -134,6 +155,24 @@ def update_article_row(sh, row_index, fields: dict):
 
 
 # --- Jobs 佇列（網頁發起、Python worker 推進）---
+
+def enqueue_job(sh, jtype: str, params: dict, created_at: str) -> str:
+    """把一件工作排進 Jobs 佇列（給排程重掃用；網頁端則由 GAS 寫入）。"""
+    import json as _json
+    import random
+    ws = sh.worksheet(JOBS)
+    jid = f"job-{datetime_stamp()}-{random.randint(0, 999)}"
+    ws.append_row(
+        [jid, jtype, _json.dumps(params), "pending", created_at, "", ""],
+        value_input_option="USER_ENTERED",
+    )
+    return jid
+
+
+def datetime_stamp() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("%Y%m%d%H%M%S")
+
 
 def get_pending_jobs(sh) -> list:
     """取出狀態為 pending 的工作（附 _row 真實列號供回寫）。"""

@@ -13,7 +13,7 @@ GAS Web App（讀寫 API，前端用）                 ← M2
 靜態前端（書庫 → 勾選 → 閱讀＋註記；發起工作寫進 Jobs）  ← M2 / M3
       ↑
 Python producer（撿 Jobs → 抓 PubMed + Gemini 摘要/排序，寫回 Sheet）  ← M1 / M3 / M4
-GitHub Actions 排程跑 run-jobs                  ← M5 之後
+GitHub Actions 跑 run-jobs（網頁立即執行／每週排程重掃訂閱）  ← M5
 ```
 
 設計理念：**Sheet 當佇列、Python 當推進狀態的 worker、前端只讀＋改狀態＋寫註記**。
@@ -25,7 +25,8 @@ GitHub Actions 排程跑 run-jobs                  ← M5 之後
 - ✅ **M2**：GAS 讀寫 API + 最小前端（看集合→讀摘要→寫註記→前端勾選 kept/dropped）
 - ✅ **M3**：網頁發起工作（`Jobs` 佇列：新增一期、按鈕產摘要，免開 CLI）
 - ✅ **M4**：主題模式漏斗（LLM 起草 query → 人工確認 → 粗篩 → 語意排序 → 勾選 → 摘要）
-- **M5**：GitHub Actions 排程自動跑 `run-jobs`
+- ✅ **M5（第一段）**：雲端 on-demand 觸發（網頁「⚡ 立即執行」）+ 主題訂閱排程重掃（`watch=on`）
+  - 待做：期刊出刊偵測（偵測新一期自動建集合）
 
 ## 安裝與設定（M1）
 
@@ -77,7 +78,35 @@ python producer.py draft-topic   --collection topic-xxxx   # Stage 0：起草 qu
 python producer.py ingest-topic  --collection topic-xxxx   # Stage 1+2：粗篩＋語意排序
 ```
 
-> M5 之後改由 GitHub Actions 定時跑 `run-jobs`，就能完全免開電腦。
+## 使用（M5：雲端執行，免開電腦）
+
+設定好後（見下），本機那行 `run-jobs` 就不再是必要：
+
+- **⚡ 立即執行（雲端）**：網頁按一下 → GAS 用 PAT 觸發 GitHub Actions 跑 `run-jobs`，把佇列裡的工作做掉。約一兩分鐘後按「重新整理」看結果。
+- **🔔 訂閱自動更新**：在某個**主題**集合勾這個開關（`Collections.watch=on`），每週排程會同 query 重掃、自動補進新文章（靠 PMID 去重）。期別集合不重掃。
+
+### M5 一次性設定
+
+**1. GitHub repo secrets**（repo → Settings → Secrets and variables → Actions → New repository secret）：
+
+| Secret | 內容 |
+|---|---|
+| `GEMINI_API_KEY` | Gemini 金鑰 |
+| `NCBI_API_KEY` | NCBI 金鑰（可留空） |
+| `NCBI_EMAIL` | E-utilities 禮貌性 email（可留空） |
+| `SHEET_ID` | 你的 Google Sheet ID |
+| `GOOGLE_SERVICE_ACCOUNT` | **整份 `service_account.json` 的內容**（直接貼 JSON 全文） |
+
+**2. GitHub fine-grained PAT**（給 GAS 觸發用）：
+- https://github.com/settings/tokens → Fine-grained tokens → Generate new token
+- Repository access：只選 `Medical-journal-reader`
+- Permissions → Repository → **Actions: Read and write**
+- 產生後複製 token
+
+**3. 把 PAT 存進 GAS**：Apps Script 編輯器 → 專案設定 → 指令碼屬性 → 新增 `GH_PAT` = 剛剛的 token。
+（`gas/Code.gs` 頂端的 `GH_OWNER`/`GH_REPO`/`GH_WORKFLOW` 已對應本 repo，換 repo 才需改。）
+
+> 排程在 `.github/workflows/run-jobs.yml`，預設每週一台北 08:00。改 cron 即可調整頻率。
 
 ## 部署更新（改了 GAS / 前端後）
 

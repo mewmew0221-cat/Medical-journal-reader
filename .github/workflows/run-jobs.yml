@@ -1,0 +1,49 @@
+name: Run jobs (清佇列 + 重掃訂閱主題)
+
+# 兩種觸發：
+#   schedule        — 定時重掃訂閱中的主題集合（補新文章）＋清佇列
+#   workflow_dispatch — 網頁「⚡ 立即執行」由 GAS 用 PAT 觸發，只清佇列
+on:
+  schedule:
+    - cron: '0 0 * * 1'   # 每週一 00:00 UTC（台北 08:00）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run-jobs
+  cancel-in-progress: false   # 別中斷正在抓取/摘要的工作
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+      NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
+      SHEET_ID: ${{ secrets.SHEET_ID }}
+      GOOGLE_SERVICE_ACCOUNT_FILE: service_account.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      # 把服務帳戶金鑰（整份 JSON 內容）從 secret 還原成檔案，供 gspread 使用
+      - name: 還原服務帳戶金鑰
+        run: printf '%s' "$GOOGLE_SERVICE_ACCOUNT" > service_account.json
+        env:
+          GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
+
+      # 只有排程觸發才重掃訂閱主題（把 watch=on 的集合排成 ingest_topic 工作）；
+      # 網頁「立即執行」是 workflow_dispatch，跳過這步、只清下面的佇列。
+      - name: 重掃訂閱中的主題集合（僅排程）
+        if: github.event_name == 'schedule'
+        run: python producer.py rescan-watched --max 50
+
+      # 清 Jobs 佇列：網頁排入的工作 + 上一步排入的重掃工作都在這裡推進
+      - name: 清 Jobs 佇列
+        run: python producer.py run-jobs

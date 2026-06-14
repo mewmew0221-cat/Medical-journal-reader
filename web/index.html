@@ -23,6 +23,8 @@
   <div class="controls">
     <select id="collection-select"></select>
     <label class="hide-dropped"><input type="checkbox" id="hide-dropped" checked> 隱藏不看的</label>
+    <label class="watch-toggle hidden" id="watch-label" title="排程會定時重掃這個主題、自動補進新文章">
+      <input type="checkbox" id="watch-check"> 🔔 訂閱自動更新</label>
     <button id="btn-refresh">↻ 重新整理</button>
   </div>
 </header>
@@ -31,6 +33,7 @@
   <button id="btn-new-issue">＋ 新增一期</button>
   <button id="btn-new-topic">＋ 新增主題</button>
   <button id="btn-summarize" class="primary">✨ 為此集合產摘要</button>
+  <button id="btn-run-now" title="不必開電腦，雲端跑掉佇列裡的工作">⚡ 立即執行（雲端）</button>
   <button id="btn-jobs">⏱ 工作狀態</button>
 </div>
 
@@ -57,7 +60,7 @@
     <button type="submit" class="primary">排入佇列</button>
     <button type="button" class="cancel" data-close="form-issue">取消</button>
   </div>
-  <p class="hint">排入後，請在本機跑 <code>python producer.py run-jobs</code>，完成後按「重新整理」就會出現新集合。</p>
+  <p class="hint">排入後按「⚡ 立即執行（雲端）」就會跑掉，或在本機跑 <code>python producer.py run-jobs</code>；完成後按「重新整理」就會出現新集合。</p>
 </form>
 
 <!-- 新增主題：自然語言主題 → worker 起草 query -->
@@ -74,14 +77,14 @@
     <button type="submit" class="primary">起草檢索式</button>
     <button type="button" class="cancel" data-close="form-topic">取消</button>
   </div>
-  <p class="hint">排入後跑 <code>python producer.py run-jobs</code> 起草，回來重新整理、選到這個集合即可檢視/微調檢索式再抓取。</p>
+  <p class="hint">排入後按「⚡ 立即執行（雲端）」或本機跑 <code>python producer.py run-jobs</code> 起草，回來重新整理、選到這個集合即可檢視/微調檢索式再抓取。</p>
 </form>
 
 <!-- 工作狀態：顯示 Jobs 佇列近況 -->
 <div id="jobs-panel" class="panel hidden">
   <h3>工作狀態（最近的佇列）</h3>
   <div id="jobs-list" class="jobs-list"></div>
-  <p class="hint">pending＝等你在本機跑 <code>python producer.py run-jobs</code>。</p>
+  <p class="hint">pending＝還沒做。按「⚡ 立即執行（雲端）」雲端跑掉，或本機跑 <code>python producer.py run-jobs</code>。</p>
 </div>
 
 <main>
@@ -94,7 +97,7 @@
       <label>最多抓 <input id="draft-max" type="number" min="1" max="200" value="80"></label>
       <button id="btn-confirm-topic" class="primary">確認並抓取</button>
     </div>
-    <p class="hint">確認後跑 <code>python producer.py run-jobs</code>，會做粗篩＋AI 語意排序，回來重新整理即可勾選。</p>
+    <p class="hint">確認後按「⚡ 立即執行（雲端）」或本機跑 <code>python producer.py run-jobs</code>，會做粗篩＋AI 語意排序，回來重新整理即可勾選。</p>
   </section>
 
   <section id="list" class="list"></section>

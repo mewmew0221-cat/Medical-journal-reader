@@ -39,7 +39,8 @@ header h1 { font-size: 1.15rem; }
   background: var(--card);
   cursor: pointer;
 }
-.hide-dropped { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.hide-dropped, .watch-toggle { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.watch-toggle.hidden { display: none; }
 
 main {
   display: grid;

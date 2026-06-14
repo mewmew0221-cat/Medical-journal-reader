@@ -90,6 +90,16 @@ async function refreshCurrent() {
   // 主題集合才需要產摘要鈕？其實期別也要，保留全部可用
   document.getElementById('btn-summarize').classList.toggle(
     'hidden', !!(c && c.type === 'topic' && colStatus(c) === 'draft'));
+  updateWatchToggle(c);
+}
+
+// 訂閱開關只對「已啟用的主題集合」有意義（期別不重掃、draft 還沒成形）
+function updateWatchToggle(c) {
+  const label = document.getElementById('watch-label');
+  const box = document.getElementById('watch-check');
+  const eligible = !!(c && c.type === 'topic' && colStatus(c) === 'active');
+  label.classList.toggle('hidden', !eligible);
+  if (eligible) box.checked = String(c.watch || '').toLowerCase() === 'on';
 }
 
 function showDraftPanel(c) {
@@ -302,6 +312,29 @@ async function summarizeCurrent() {
   toast('已排入產摘要工作，跑 run-jobs 後重新整理');
 }
 
+// 切換目前主題集合的訂閱狀態（排程會重掃 watch=on 的集合補新文章）
+async function toggleWatch(e) {
+  const c = currentCollection();
+  if (!c) return;
+  const on = e.target.checked;
+  c.watch = on ? 'on' : 'off';
+  await post({ action: 'set_watch', collection_id: c.collection_id, watch: on });
+  toast(on ? '已訂閱，排程會自動補新文章' : '已取消訂閱');
+}
+
+// 立即執行（雲端）：請 GAS 用 PAT 觸發 GitHub Actions 跑掉佇列裡的工作
+async function runNow(e) {
+  const btn = e.currentTarget;
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⚡ 觸發中…';
+  const res = await post({ action: 'run_now' });
+  btn.textContent = old;
+  btn.disabled = false;
+  if (res.ok) toast('已觸發雲端執行，約一兩分鐘後按「重新整理」看結果');
+  else toast('觸發失敗：' + (res.error || '未知錯誤'));
+}
+
 async function loadJobs() {
   const data = await getJSON({ action: 'jobs' });
   const box = document.getElementById('jobs-list');
@@ -348,6 +381,8 @@ document.getElementById('btn-jobs').addEventListener('click', async () => {
   await loadJobs();
 });
 document.getElementById('btn-summarize').addEventListener('click', summarizeCurrent);
+document.getElementById('btn-run-now').addEventListener('click', runNow);
+document.getElementById('watch-check').addEventListener('change', toggleWatch);
 document.getElementById('form-issue').addEventListener('submit', submitIssue);
 document.getElementById('form-topic').addEventListener('submit', submitTopic);
 document.getElementById('btn-confirm-topic').addEventListener('click', confirmTopic);

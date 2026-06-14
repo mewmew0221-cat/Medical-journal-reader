@@ -6,6 +6,12 @@
 
 const SHEET_ID = '1rHmu5k42PvHTF9GavqdCj5Gtr4lBfiuutIhSzBVh8_k';
 
+// M5：雲端觸發。GitHub repo 與要觸發的 workflow 檔名。
+// PAT（fine-grained、只給該 repo 的 Actions: read+write）存在「指令碼屬性」的 GH_PAT，不寫進公開程式碼。
+const GH_OWNER = 'mewmew0221-cat';
+const GH_REPO = 'Medical-journal-reader';
+const GH_WORKFLOW = 'run-jobs.yml';
+
 function getSheet_(name) {
   return SpreadsheetApp.openById(SHEET_ID).getSheetByName(name);
 }
@@ -28,7 +34,7 @@ function ensureSheet_(name, headers) {
 }
 
 const COLLECTIONS_HEADERS = ['collection_id', 'type', 'name', 'query',
-  'created_at', 'last_synced_at', 'note', 'status'];
+  'created_at', 'last_synced_at', 'note', 'status', 'watch'];
 const JOBS_HEADERS = ['job_id', 'type', 'params', 'status',
   'created_at', 'finished_at', 'message'];
 
@@ -105,6 +111,15 @@ function doPost(e) {
       { collection_id: body.collection_id, max: body.max || 50 });
     return json_({ ok: true, job_id: jid });
   }
+  // M5：訂閱開關。watch=on 的主題集合會被排程重掃補新文章。
+  if (body.action === 'set_watch') {
+    updateCollection_(body.collection_id, { watch: body.watch ? 'on' : 'off' });
+    return json_({ ok: true });
+  }
+  // M5：立即執行（雲端）。觸發 GitHub Actions 跑 run-jobs，把佇列裡的工作做掉。
+  if (body.action === 'run_now') {
+    return json_(triggerWorkflow_());
+  }
   return json_({ error: 'unknown action' });
 }
 
@@ -124,10 +139,34 @@ function enqueueJob_(type, params) {
   return jid;
 }
 
-// Collections 表頭：collection_id, type, name, query, created_at, last_synced_at, note, status
+// Collections 表頭：collection_id, type, name, query, created_at, last_synced_at, note, status, watch
 function addCollection_(cid, type, name, query, note, status) {
   const sh = ensureSheet_('Collections', COLLECTIONS_HEADERS);
-  sh.appendRow([cid, type, name, query, nowStr_(), '', note, status]);
+  sh.appendRow([cid, type, name, query, nowStr_(), '', note, status, 'off']);
+}
+
+// M5：用存在指令碼屬性的 GH_PAT 觸發 GitHub Actions 的 workflow_dispatch。
+// PAT 不可放純前端（會外洩），所以由 GAS 代發，沿用通關碼那套後端存密鑰。
+function triggerWorkflow_() {
+  const pat = PropertiesService.getScriptProperties().getProperty('GH_PAT');
+  if (!pat) return { error: 'GH_PAT 未設定（請到指令碼屬性新增）' };
+  const url = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO +
+    '/actions/workflows/' + GH_WORKFLOW + '/dispatches';
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'Authorization': 'Bearer ' + pat,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    payload: JSON.stringify({ ref: 'main' }),
+    muteHttpExceptions: true,
+  });
+  const code = res.getResponseCode();
+  // GitHub 觸發成功回 204 No Content
+  if (code === 204) return { ok: true };
+  return { error: 'GitHub 回應 ' + code + '：' + res.getContentText().slice(0, 300) };
 }
 
 function updateCollection_(cid, fields) {

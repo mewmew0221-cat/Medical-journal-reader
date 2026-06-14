@@ -12,6 +12,7 @@
 | `last_synced_at` | 上次刷新時間（主題重跑/排程用） |
 | `note` | 備註；**主題模式**這裡存使用者輸入的自然語言主題描述（供起草 query 與語意排序用） |
 | `status` | `active`（一般）或 `draft`（主題已建、query 起草中／待使用者確認）。空白＝視為 active |
+| `watch` | `on` / `off`（空白＝off）。`on` 的**主題**集合會被排程定時重掃、同 query 重跑補進新文章（靠 pmid 去重）。期別集合不重掃 |
 
 ## `Articles`（文章 = 屬於某集合的一篇）
 
@@ -42,8 +43,9 @@ no_abstract：原廠無摘要的 review/letter，仍可保留只寫註記
 
 ## `Jobs`（工作佇列 = 網頁發起、Python worker 推進）
 
-網頁不直接呼叫 LLM/PubMed，而是把要做的事寫成一列 `Jobs`；本機（未來 M5 改 GitHub Actions）
-跑 `python producer.py run-jobs` 撿起來執行。
+網頁不直接呼叫 LLM/PubMed，而是把要做的事寫成一列 `Jobs`；由 `python producer.py run-jobs`
+撿起來執行。執行端有兩種：本機手動跑，或 **GitHub Actions**（M5）——網頁「⚡ 立即執行（雲端）」
+經 GAS 用 PAT 觸發 `run-jobs.yml`、或每週排程自動跑。
 
 | 欄位 | 說明 |
 |---|---|
@@ -69,3 +71,18 @@ no_abstract：原廠無摘要的 review/letter，仍可保留只寫註記
 [worker] ingest_topic ─▶ PubMed 粗篩 → 翻譯標題 → LLM 語意排序（relevance_score）→ 寫 candidate
 [網頁] 依分數高低勾選 kept ─▶ 排 summarize ─▶ [worker] 只對 kept 產摘要
 ```
+
+## M5：雲端排程與 on-demand 觸發
+
+```
+[on-demand] 網頁「⚡ 立即執行」─▶ GAS run_now（用 Script Property 的 GH_PAT）
+            ─▶ GitHub API workflow_dispatch ─▶ run-jobs.yml ─▶ run-jobs（清佇列）
+
+[排程]      run-jobs.yml 每週 cron ─▶ rescan-watched（把 watch=on 的主題集合
+            排成 ingest_topic 工作）─▶ run-jobs（清佇列、補進新文章）
+```
+
+- **資源節制**：排程不掃全部集合，只挑 `Collections.watch = on` 的**主題**集合。每集合在網頁有一顆「🔔 訂閱自動更新」開關（→ GAS `set_watch`）。
+- **去重**：`ingest_topic` 用 `existing_pmids` 過濾，重掃只新增沒看過的 PMID。
+- **PAT 不落前端**：純前端放 PAT 會外洩，所以由 GAS 後端持有（Script Property `GH_PAT`，fine-grained、只給該 repo 的 Actions read+write）。
+- **第二段（未做）**：期刊出刊偵測（偵測某期刊出了新一期就自動建 issue 集合），與目前「指定年月」的期別模式不同，留待後續。

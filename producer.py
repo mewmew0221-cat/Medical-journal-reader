@@ -107,6 +107,27 @@ def ingest_topic(collection_id: str, max_fetch: int):
     logger.info(f"已寫入 {len(rows)} 篇候選到主題集合 {collection_id}")
 
 
+def rescan_watched(max_fetch: int = 50):
+    """排程重掃：把每個有訂閱（watch=on）的主題集合排成一件 ingest_topic 工作。
+
+    同 query 重跑，靠 ingest_topic 內既有的 pmid 去重，只會補進新文章。
+    排成 Jobs 而非直接抓，是為了讓網頁的「工作狀態」面板看得到這次重掃。
+    之後 run-jobs 會把這些 pending 工作撿起來推進。
+    """
+    sh = sheets.open_sheet()
+    watched = sheets.get_watched_collections(sh)
+    if not watched:
+        logger.info("沒有訂閱自動更新的主題集合")
+        return
+    logger.info(f"重掃 {len(watched)} 個訂閱中的主題集合")
+    for col in watched:
+        cid = col["collection_id"]
+        jid = sheets.enqueue_job(
+            sh, "ingest_topic", {"collection_id": cid, "max": max_fetch}, _now()
+        )
+        logger.info(f"已排入重掃工作 {jid}（集合 {cid}：{col.get('name')}）")
+
+
 def retranslate_titles(collection_id=None):
     """重新翻譯既有文章的中文標題並回寫（修正早期簡體殘留）。"""
     sh = sheets.open_sheet()
@@ -211,6 +232,9 @@ def main():
 
     sub.add_parser("run-jobs", help="撿 Jobs 佇列（網頁發起的工作）依序執行")
 
+    rw = sub.add_parser("rescan-watched", help="把訂閱中的主題集合排成重掃工作（排程用）")
+    rw.add_argument("--max", type=int, default=50)
+
     args = p.parse_args()
     if args.cmd == "ingest-issue":
         ingest_issue(args.journal, args.year, args.month, args.max)
@@ -224,6 +248,8 @@ def main():
         draft_topic(args.collection)
     elif args.cmd == "run-jobs":
         run_jobs()
+    elif args.cmd == "rescan-watched":
+        rescan_watched(args.max)
 
 
 if __name__ == "__main__":
