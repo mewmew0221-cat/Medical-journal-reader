@@ -202,3 +202,12 @@ function updateArticle_(collectionId, pmid, fields) {
     }
   }
 }
+
+// 授權用：在編輯器手動執行一次（函式選單選 authorizeExternal → 運行），會跳出
+// 「連線至外部服務」(script.external_request) 授權對話框，按允許即可。
+// UrlFetchApp 需要這個 OAuth scope，沒授權的話 run_now 會在 GAS 端拋例外
+// （並因錯誤頁無 CORS 標頭，讓前端看到 Failed to fetch）。
+// 之後若再加會用到新權限的程式碼，重跑這支即可重新授權。
+function authorizeExternal() {
+  Logger.log(triggerWorkflow_());
+}
