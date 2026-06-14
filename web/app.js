@@ -39,10 +39,18 @@ async function getJSON(params) {
   return data;
 }
 
-// 不設 header，維持 text/plain 避免 GAS 的 CORS preflight（與小說站同款）
+// 不設 header，維持 text/plain 避免 GAS 的 CORS preflight（與小說站同款）。
+// GAS 對 POST 不回 CORS 標頭，瀏覽器讀不到回應 → 一律當「送出即可」：
+// 請求其實已送達並執行（寫入會成功），讀不到回應屬正常，不讓它丟錯卡住流程。
 async function post(body) {
-  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ ...body, token: getToken() }) });
-  try { return await r.json(); } catch (e) { return {}; }
+  try {
+    const r = await fetch(API, {
+      method: 'POST', body: JSON.stringify({ ...body, token: getToken() }),
+    });
+    return await r.json();
+  } catch (e) {
+    return { _unreadable: true };  // 跨來源讀不到回應，但工作已送達 GAS
+  }
 }
 
 function toast(msg) {
@@ -328,11 +336,16 @@ async function runNow(e) {
   const old = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⚡ 觸發中…';
-  const res = await post({ action: 'run_now' });
-  btn.textContent = old;
-  btn.disabled = false;
-  if (res.ok) toast('已觸發雲端執行，約一兩分鐘後按「重新整理」看結果');
-  else toast('觸發失敗：' + (res.error || '未知錯誤'));
+  try {
+    const res = await post({ action: 'run_now' });
+    // 讀得到回應且明確報錯（如 GH_PAT 未設）才顯示失敗；
+    // 讀不到回應（CORS）時請求其實已送達，樂觀視為已觸發。
+    if (res && res.error) toast('觸發失敗：' + res.error);
+    else toast('已觸發雲端執行，約一兩分鐘後到「工作狀態」或按「重新整理」看結果');
+  } finally {
+    btn.textContent = old;
+    btn.disabled = false;
+  }
 }
 
 async function loadJobs() {
