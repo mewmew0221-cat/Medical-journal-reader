@@ -86,8 +86,9 @@ def update_collection(sh, collection_id, fields: dict):
 def get_watched_collections(sh) -> list:
     """取出有訂閱自動更新（watch=on）的主題集合（附 _row）。
 
-    只挑 type=topic 且 status 為 active（非 draft）的，期別集合不重掃
+    只挑 type=topic 且 status 為 active 的，期別集合不重掃
     （某期已是定數，不會長新文章；期刊出刊偵測屬 M5 第二段）。
+    排除 draft（還沒成形）與 archived（已移入歷史書庫）。
     """
     ws = sh.worksheet(COLLECTIONS)
     out = []
@@ -96,7 +97,7 @@ def get_watched_collections(sh) -> list:
             continue
         if r.get("type") != "topic":
             continue
-        if str(r.get("status", "active") or "active") == "draft":
+        if str(r.get("status", "active") or "active") != "active":
             continue
         r["_row"] = i
         out.append(r)

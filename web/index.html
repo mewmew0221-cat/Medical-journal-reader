@@ -35,6 +35,11 @@
   <button id="btn-summarize" class="primary">✨ 為此集合產摘要</button>
   <button id="btn-run-now" title="不必開電腦，雲端跑掉佇列裡的工作">⚡ 立即執行（雲端）</button>
   <button id="btn-jobs">⏱ 工作狀態</button>
+  <span class="newbar-sep"></span>
+  <button id="btn-export" title="把這個書頁所有摘要彙整成一份 Markdown 下載">⬇ 匯出整份摘要</button>
+  <button id="btn-archive" title="從下拉選單隱藏，之後可從歷史書庫再提取">📦 移入歷史書庫</button>
+  <button id="btn-delete-collection" class="danger" title="永久刪除這個書頁與它的所有文章">🗑 刪除此書頁</button>
+  <button id="btn-history">📚 歷史書庫</button>
 </div>
 
 <!-- 新增一期：抓某期刊某年月 -->
@@ -79,6 +84,13 @@
   </div>
   <p class="hint">排入後按「⚡ 立即執行（雲端）」或本機跑 <code>python producer.py run-jobs</code> 起草，回來重新整理、選到這個集合即可檢視/微調檢索式再抓取。</p>
 </form>
+
+<!-- 歷史書庫：列出已封存的書頁，可提取/預覽/刪除 -->
+<div id="history-panel" class="panel hidden">
+  <h3>📚 歷史書庫</h3>
+  <div id="history-list" class="history-list"></div>
+  <p class="hint">封存的書頁不顯示在上方下拉選單。「提取」會還原回下拉；「預覽」可唯讀檢視並匯出摘要；「刪除」為永久刪除。</p>
+</div>
 
 <!-- 工作狀態：顯示 Jobs 佇列近況 -->
 <div id="jobs-panel" class="panel hidden">

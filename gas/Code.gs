@@ -120,6 +120,21 @@ function doPost(e) {
   if (body.action === 'run_now') {
     return json_(triggerWorkflow_());
   }
+  // 書頁管理：移入歷史書庫（從下拉隱藏、關掉訂閱避免排程重掃）
+  if (body.action === 'archive_collection') {
+    updateCollection_(body.collection_id, { status: 'archived', watch: 'off' });
+    return json_({ ok: true });
+  }
+  // 書頁管理：從歷史書庫提取（還原回 active，重新出現在下拉）
+  if (body.action === 'restore_collection') {
+    updateCollection_(body.collection_id, { status: 'active' });
+    return json_({ ok: true });
+  }
+  // 書頁管理：永久刪除集合與其所有文章列（不可復原）
+  if (body.action === 'delete_collection') {
+    deleteCollection_(body.collection_id);
+    return json_({ ok: true });
+  }
   return json_({ error: 'unknown action' });
 }
 
@@ -182,6 +197,23 @@ function updateCollection_(cid, fields) {
       });
       return;
     }
+  }
+}
+
+// 永久刪除：先刪 Articles 中該集合的所有列（由下往上，避免刪一列後下面列號位移），
+// 再刪 Collections 那一列。個人小工具、資料量小，逐列刪即可。
+function deleteCollection_(cid) {
+  const aSh = getSheet_('Articles');
+  const aVals = aSh.getDataRange().getValues();
+  const aColId = aVals[0].indexOf('collection_id');
+  for (let r = aVals.length - 1; r >= 1; r--) {
+    if (String(aVals[r][aColId]) === String(cid)) aSh.deleteRow(r + 1);
+  }
+  const cSh = getSheet_('Collections');
+  const cVals = cSh.getDataRange().getValues();
+  const cColId = cVals[0].indexOf('collection_id');
+  for (let r = cVals.length - 1; r >= 1; r--) {
+    if (String(cVals[r][cColId]) === String(cid)) { cSh.deleteRow(r + 1); break; }
   }
 }
 

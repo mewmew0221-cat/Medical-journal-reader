@@ -73,14 +73,17 @@ async function loadCollections() {
   collections = data.collections || [];
   const sel = document.getElementById('collection-select');
   sel.innerHTML = '';
-  [...collections].reverse().forEach(c => {
-    const o = document.createElement('option');
-    o.value = c.collection_id;
-    const draft = colStatus(c) === 'draft' ? '（草稿）' : '';
-    const tag = c.type === 'topic' ? '🔍 ' : '📖 ';
-    o.textContent = tag + (c.name || c.collection_id) + draft;
-    sel.appendChild(o);
-  });
+  // 封存（archived）的書頁收進歷史書庫、不顯示在下拉
+  [...collections].reverse()
+    .filter(c => colStatus(c) !== 'archived')
+    .forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.collection_id;
+      const draft = colStatus(c) === 'draft' ? '（草稿）' : '';
+      const tag = c.type === 'topic' ? '🔍 ' : '📖 ';
+      o.textContent = tag + (c.name || c.collection_id) + draft;
+      sel.appendChild(o);
+    });
   if (sel.value) { currentCid = sel.value; await refreshCurrent(); }
 }
 
@@ -268,15 +271,15 @@ function esc(s) {
 
 // --- M3：從網頁發起工作（寫進 Jobs 佇列，由本機 worker 推進）---
 
+const PANELS = ['form-issue', 'form-topic', 'jobs-panel', 'history-panel'];
 // 只開指定面板、關掉其他
 function openOnly(id) {
-  ['form-issue', 'form-topic', 'jobs-panel'].forEach(p => {
+  PANELS.forEach(p => {
     document.getElementById(p).classList.toggle('hidden', p !== id);
   });
 }
 function closePanels() {
-  ['form-issue', 'form-topic', 'jobs-panel'].forEach(
-    p => document.getElementById(p).classList.add('hidden'));
+  PANELS.forEach(p => document.getElementById(p).classList.add('hidden'));
 }
 
 async function submitIssue(e) {
@@ -318,6 +321,144 @@ async function summarizeCurrent() {
   if (!currentCid) return;
   await post({ action: 'enqueue', type: 'summarize', params: { collection: currentCid } });
   toast('已排入產摘要工作，跑 run-jobs 後重新整理');
+}
+
+// --- 書頁管理：匯出整份摘要 / 封存 / 提取 / 刪除 ---
+
+function safeFilename(s) {
+  return String(s).replace(/[\\/:*?"<>|]/g, '').slice(0, 50).trim() || 'export';
+}
+
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+// 把當前書頁彙整成一份 Markdown：有摘要的逐篇（含註記、原文連結），
+// 沒摘要的列成清單。用目前已載入的 articles，純前端、不打後端。
+function exportCollection() {
+  const c = currentCollection();
+  if (!c) { toast('沒有選到書頁'); return; }
+  if (!articles.length) { toast('這個書頁沒有文章'); return; }
+  const title = c.name || c.collection_id;
+  const lines = [`# ${title}`, '', `> 匯出於 ${new Date().toLocaleString('zh-TW')}`, ''];
+
+  const hasSummary = a => a.summary && String(a.summary).trim();
+  const withSummary = articles.filter(hasSummary);
+  const noSummary = articles.filter(a => !hasSummary(a));
+
+  withSummary.forEach(a => {
+    lines.push(`## ${a.title_zh || a.title_en || a.pmid}`);
+    if (a.title_en && a.title_zh) lines.push(`*${a.title_en}*`);
+    const meta = [a.journal, a.pub_date, a.authors].filter(Boolean).join(' · ');
+    if (meta) lines.push(meta);
+    lines.push('', String(a.summary).trim());
+    if (a.note && String(a.note).trim()) {
+      lines.push('', `> 📝 我的註記：${String(a.note).trim()}`);
+    }
+    if (a.url) lines.push('', `🔗 PubMed 原文：${a.url}`);
+    lines.push('', '---', '');
+  });
+
+  if (noSummary.length) {
+    lines.push('## 未產摘要的文章', '');
+    noSummary.forEach(a => {
+      const name = a.title_zh || a.title_en || a.pmid;
+      const st = STATUS_LABEL[a.status] || a.status || '';
+      const link = a.url ? ` （[PubMed](${a.url})）` : '';
+      lines.push(`- ${name}${st ? `〔${st}〕` : ''}${link}`);
+    });
+    lines.push('');
+  }
+
+  downloadText(`${safeFilename(title)}_摘要彙整.md`, lines.join('\n'));
+  toast(`已匯出 ${withSummary.length} 篇摘要`);
+}
+
+// 移入歷史書庫（封存）：從下拉隱藏、關掉訂閱
+async function archiveCollection() {
+  const c = currentCollection();
+  if (!c) { toast('沒有選到書頁'); return; }
+  const name = c.name || c.collection_id;
+  if (!confirm(`把「${name}」移入歷史書庫？\n會從下拉選單隱藏，之後可從「📚 歷史書庫」再提取回來。`)) return;
+  c.status = 'archived';
+  c.watch = 'off';
+  await post({ action: 'archive_collection', collection_id: c.collection_id });
+  toast('已移入歷史書庫');
+  await loadCollections();
+}
+
+// 永久刪除當前書頁（連同所有文章），二次確認
+async function deleteCollectionAction() {
+  const c = currentCollection();
+  if (!c) { toast('沒有選到書頁'); return; }
+  const name = c.name || c.collection_id;
+  if (!confirm(`⚠ 永久刪除「${name}」？\n會連同它的所有文章一起刪除，無法復原。`)) return;
+  if (!confirm(`再次確認：真的要永久刪除「${name}」嗎？`)) return;
+  await post({ action: 'delete_collection', collection_id: c.collection_id });
+  toast('已永久刪除');
+  await loadCollections();
+}
+
+// 歷史書庫面板：列出 archived 的書頁，可提取/預覽/刪除
+function openHistory() {
+  openOnly('history-panel');
+  renderHistory();
+}
+
+function renderHistory() {
+  const box = document.getElementById('history-list');
+  const archived = collections.filter(c => colStatus(c) === 'archived');
+  if (!archived.length) {
+    box.innerHTML = '<div class="empty">歷史書庫是空的。</div>';
+    return;
+  }
+  box.innerHTML = '';
+  [...archived].reverse().forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'hist-row';
+    const tag = c.type === 'topic' ? '🔍 ' : '📖 ';
+    row.innerHTML = `
+      <span class="hist-name">${tag}${esc(c.name || c.collection_id)}</span>
+      <span class="hist-acts">
+        <button data-act="preview">👁 預覽</button>
+        <button data-act="restore" class="primary">↩ 提取</button>
+        <button data-act="delete" class="danger">🗑 刪除</button>
+      </span>`;
+    row.querySelectorAll('button[data-act]').forEach(b =>
+      b.addEventListener('click', () => onHistoryAct(c, b.dataset.act)));
+    box.appendChild(row);
+  });
+}
+
+async function onHistoryAct(c, act) {
+  if (act === 'restore') {
+    c.status = 'active';
+    await post({ action: 'restore_collection', collection_id: c.collection_id });
+    toast('已提取回下拉選單');
+    closePanels();
+    await loadCollections();
+  } else if (act === 'delete') {
+    const name = c.name || c.collection_id;
+    if (!confirm(`⚠ 永久刪除「${name}」？連同所有文章，無法復原。`)) return;
+    await post({ action: 'delete_collection', collection_id: c.collection_id });
+    toast('已永久刪除');
+    await loadCollections();
+    renderHistory();
+  } else if (act === 'preview') {
+    // 唯讀預覽：切到該封存書頁顯示文章（可在此匯出摘要），不改下拉
+    currentCid = c.collection_id;
+    closePanels();
+    await refreshCurrent();
+    toast('預覽歷史書頁（唯讀）');
+  }
 }
 
 // 切換目前主題集合的訂閱狀態（排程會重掃 watch=on 的集合補新文章）
@@ -395,6 +536,10 @@ document.getElementById('btn-jobs').addEventListener('click', async () => {
 });
 document.getElementById('btn-summarize').addEventListener('click', summarizeCurrent);
 document.getElementById('btn-run-now').addEventListener('click', runNow);
+document.getElementById('btn-export').addEventListener('click', exportCollection);
+document.getElementById('btn-archive').addEventListener('click', archiveCollection);
+document.getElementById('btn-delete-collection').addEventListener('click', deleteCollectionAction);
+document.getElementById('btn-history').addEventListener('click', openHistory);
 document.getElementById('watch-check').addEventListener('change', toggleWatch);
 document.getElementById('form-issue').addEventListener('submit', submitIssue);
 document.getElementById('form-topic').addEventListener('submit', submitTopic);

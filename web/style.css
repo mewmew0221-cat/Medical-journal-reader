@@ -194,6 +194,24 @@ main:has(.reader:not(.hidden)) { grid-template-columns: 1fr 1.2fr; align-items: 
   border: 1px solid var(--line); background: var(--card); cursor: pointer;
 }
 .newbar button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.newbar button.danger { color: #a33; border-color: #e6c4c4; }
+.newbar button.danger:hover { background: #fbeaea; }
+.newbar-sep { flex: 1 1 auto; min-width: 8px; }
+
+/* 歷史書庫清單 */
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.hist-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+}
+.hist-name { flex: 1; min-width: 140px; font-weight: 600; }
+.hist-acts { display: flex; gap: 6px; }
+.hist-acts button {
+  font: inherit; font-size: .8rem; padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer;
+}
+.hist-acts button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.hist-acts button.danger { color: #a33; border-color: #e6c4c4; }
 
 .panel {
   background: var(--card);
