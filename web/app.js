@@ -238,6 +238,17 @@ async function markRead() {
   toast('已標為已讀');
 }
 
+// 讀完發現不需要：直接從閱讀面板退回「不看」（可從卡片列表「↩ 還原」救回）
+async function markDropped() {
+  const a = articles.find(x => x.pmid === openPmid);
+  if (!a) return;
+  a.status = 'dropped';
+  renderList();
+  document.getElementById('reader').classList.add('hidden');
+  await post({ action: 'update', collection_id: a.collection_id, pmid: a.pmid, fields: { status: 'dropped' } });
+  toast('已標為不看（可從卡片「↩ 還原」救回）');
+}
+
 // 下載單篇摘要為 Markdown 檔（摘要本身已含標題與文獻資訊，只補原文連結）
 function downloadSummary() {
   const a = articles.find(x => x.pmid === openPmid);
@@ -525,6 +536,7 @@ document.getElementById('reader-close').addEventListener('click', () => {
 });
 document.getElementById('btn-save-note').addEventListener('click', saveNote);
 document.getElementById('btn-mark-read').addEventListener('click', markRead);
+document.getElementById('btn-mark-drop').addEventListener('click', markDropped);
 document.getElementById('btn-download').addEventListener('click', downloadSummary);
 document.getElementById('btn-print').addEventListener('click', printSummary);
 
