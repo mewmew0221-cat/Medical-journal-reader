@@ -330,8 +330,10 @@ async function confirmTopic() {
 
 async function summarizeCurrent() {
   if (!currentCid) return;
-  await post({ action: 'enqueue', type: 'summarize', params: { collection: currentCid } });
-  toast('已排入產摘要工作，跑 run-jobs 後重新整理');
+  const res = await post({ action: 'enqueue', type: 'summarize', params: { collection: currentCid } });
+  if (res && res.error) { toast('排入失敗：' + res.error); return; }
+  if (res && res._unreadable) { toast('已送出，但讀不到回應，請到「⏱ 工作狀態」確認是否成功排入'); return; }
+  toast('已排入產摘要工作，跑 run-jobs 或按「⚡ 立即執行（雲端）」後重新整理');
 }
 
 // --- 書頁管理：匯出整份摘要 / 封存 / 提取 / 刪除 ---

@@ -143,10 +143,11 @@ def retranslate_titles(collection_id=None):
 
 
 def summarize_pending(collection_id=None):
-    """Pass 2：對標記為 kept 的文章產摘要並回寫。"""
+    """Pass 2：對標記為 kept 的文章產摘要並回寫。回傳失敗的 pmid 清單（供 run_jobs 寫進 Jobs.message）。"""
     sh = sheets.open_sheet()
     kept = sheets.get_articles_by_status(sh, "kept", collection_id)
     logger.info(f"待摘要 {len(kept)} 篇")
+    failed = []
     for r in kept:
         article = {
             "title": r["title_en"], "journal": r["journal"], "pub_date": r["pub_date"],
@@ -155,11 +156,13 @@ def summarize_pending(collection_id=None):
         summary = llm.summarize_abstract(article)
         if summary.startswith("Error"):
             logger.warning(f"PMID {r['pmid']} 摘要失敗，略過")
+            failed.append(r["pmid"])
             continue
         sheets.update_article_row(sh, r["_row"], {
             "summary": summary, "status": "summarized", "summarized_at": _now(),
         })
         logger.info(f"PMID {r['pmid']} 摘要完成")
+    return failed
 
 
 def run_jobs():
@@ -179,11 +182,14 @@ def run_jobs():
         logger.info(f"▶ 執行 {jid}（{jtype}）params={params}")
         sheets.update_job(sh, job["_row"], {"status": "running"})
         try:
-            _dispatch_job(jtype, params)
+            failed = _dispatch_job(jtype, params)
+            message = ""
+            if failed:
+                message = f"完成，但 {len(failed)} 篇摘要失敗（PMID: {', '.join(failed)}）"[:500]
             sheets.update_job(sh, job["_row"], {
-                "status": "done", "finished_at": _now(), "message": "",
+                "status": "done", "finished_at": _now(), "message": message,
             })
-            logger.info(f"✔ {jid} 完成")
+            logger.info(f"✔ {jid} 完成" + (f"（{len(failed)} 篇失敗）" if failed else ""))
         except Exception as e:
             logger.exception(f"✘ {jid} 失敗")
             sheets.update_job(sh, job["_row"], {
@@ -192,13 +198,14 @@ def run_jobs():
 
 
 def _dispatch_job(jtype: str, params: dict):
+    """執行工作，回傳值目前只有 summarize 有意義（失敗的 pmid 清單），其餘回 None。"""
     if jtype == "ingest_issue":
         ingest_issue(
             params["journal"], int(params["year"]), int(params["month"]),
             int(params.get("max", 50)),
         )
     elif jtype == "summarize":
-        summarize_pending(params.get("collection") or None)
+        return summarize_pending(params.get("collection") or None)
     elif jtype == "draft_topic":
         draft_topic(params["collection_id"])
     elif jtype == "ingest_topic":
